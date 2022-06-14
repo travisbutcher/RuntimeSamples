@@ -39,11 +39,13 @@ namespace ArcGISRuntime.UWP.Samples.OAuth
         // - The URL of the portal to authenticate with
         private const string ServerUrlSharing = "https://ua-gas-gisportal.southernco.com/portal/sharing/rest";
         private const string ServerUrlHome = "https://ua-gas-gisportal.southernco.com/portal/home/";
+        private const string AuthorizeURL = "https://ua-gas-gisportal.southernco.com/portal/sharing/oauth2/authorize";
+        private const string TokenURL = "https://ua-gas-gisportal.southernco.com/portal/sharing/oauth2/token";
         private const string AppClientId = "oHvyHoTBFYyzwTXV";
         private const string OAuthRedirectUrl = "my-ags-app://auth";
         private Credential credential;
 
-        // - The ID for a web map item hosted on the server (the ID below is for a traffic map of Paris).
+        // - The ID for a web map item hosted on the server
         private const string WebMapId = "e5039444ef3c48b8a8fdc9227f9be7c1";
 
         public OAuth()
@@ -61,49 +63,21 @@ namespace ArcGISRuntime.UWP.Samples.OAuth
                 //Force the Portal to Login
                 // Set up the AuthenticationManager to use OAuth for secure ArcGIS Online requests.
                 // Define the server information for ArcGIS Online
-                ServerInfo portalServerInfo = new ServerInfo(new Uri(ServerUrlHome))
-                {
-                    TokenAuthenticationType = TokenAuthenticationType.OAuthAuthorizationCode,
-                    OAuthClientInfo = new OAuthClientInfo(AppClientId, new Uri(OAuthRedirectUrl))
-                };
-
-                // Register the ArcGIS Online server information with the AuthenticationManager
-                AuthenticationManager.Current.RegisterServer(portalServerInfo);
+                ArcGISLoginPrompt.SetChallengeHandler();
 
                 // Create a new ChallengeHandler that uses a method in this class to challenge for credentials
-                AuthenticationManager.Current.ChallengeHandler = new ChallengeHandler(PromptCredentialAsync);
+                AuthenticationManager.Current.ChallengeHandler = new ChallengeHandler(ArcGISLoginPrompt.PromptCredentialAsync);
 
+                //Create Handler to monitor response end flags 
                 ArcGISHttpClientHandler.HttpResponseEnd += ArcGISHttpClientHandler_HttpResponseEnd;
-                ArcGISHttpClientHandler.HttpRequestBegin += (s, r) =>
-                {
-                    if (r.RequestUri.Host == "ua-gas-gisportal.southernco.com")
-                    {
-                        HttpBaseProtocolFilter myFilter = new HttpBaseProtocolFilter();
-                        var cookieManager = myFilter.CookieManager;
-                        HttpCookieCollection myCookieJar = cookieManager.GetCookies(new Uri("https://ua-gas-gisportal.southernco.com"));
-                        HttpClientHandler httpClientHandler = ((ArcGISHttpRequestMessage)r).Handler as HttpClientHandler;
-
-                        foreach (HttpCookie cook in myCookieJar)
-                        {
-                            Debug.WriteLine(cook.Name);
-                            Debug.WriteLine(cook.Value);
-                            Cookie cookie = new Cookie();
-                            cookie.Name = cook.Name;
-                            cookie.Value = cook.Value;
-                            cookie.Domain = cook.Domain;
-
-                            httpClientHandler.CookieContainer.Add(cookie);
-                        }
-                    }
-                };
-
-                // Connect to the portal (ArcGIS Online, for example).
+               
+                //Force a login to the Portal
                 ArcGISPortal arcgisPortal = await ArcGISPortal.CreateAsync(new Uri(ServerUrlHome), true);
             }
             catch (UnauthorizedAccessException)
             {
                 Console.WriteLine("Do the Web View Login");
-                webView1.Navigate(new Uri(ServerUrlHome));
+                webView1.Navigate(new Uri(AuthorizeURL));
             }
             catch (Exception ex)
             {
@@ -111,32 +85,32 @@ namespace ArcGISRuntime.UWP.Samples.OAuth
             }
         }
 
-        public static async Task<Credential> PromptCredentialAsync(CredentialRequestInfo info)
+        private void ArcGISHttpClientHandler_HttpRequestBegin(object s, System.Net.Http.HttpRequestMessage r)
         {
-            Credential credential = null;
+            if (r.RequestUri.Host == "ua-gas-gisportal.southernco.com")
+            {
+                HttpBaseProtocolFilter myFilter = new HttpBaseProtocolFilter();
+                var cookieManager = myFilter.CookieManager;
+                HttpCookieCollection myCookieJar = cookieManager.GetCookies(new Uri("https://ua-gas-gisportal.southernco.com"));
 
-            try
-            {
-                // IOAuthAuthorizeHandler will challenge the user for OAuth credentials
-                credential = await AuthenticationManager.Current.GenerateCredentialAsync(info.ServiceUri);
-            }
-            catch (OperationCanceledException)
-            {
-                // OAuth login was canceled, no need to display error to user.
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-            }
+                HttpClientHandler httpClientHandler = ((ArcGISHttpRequestMessage)r).Handler as HttpClientHandler;
 
-            return credential;
+                foreach (HttpCookie cook in myCookieJar)
+                {
+                    Debug.WriteLine(cook.Name);
+                    Debug.WriteLine(cook.Value);
+                    Cookie cookie = new Cookie();
+                    cookie.Name = cook.Name;
+                    cookie.Value = cook.Value;
+                    cookie.Domain = cook.Domain;
+
+                    httpClientHandler.CookieContainer.Add(cookie);
+                }
+            }
         }
 
         private void ArcGISHttpClientHandler_HttpResponseEnd(object sender, HttpResponseEndEventArgs e)
         {
-            var originalRequestUri = e.OriginalRequestUri;
-            var response = e.Response;
-
             if (e.Response.Headers.Server.ToString().Contains("BigIP"))
             {
                 throw new UnauthorizedAccessException("Redirect to the Web View");
@@ -148,19 +122,8 @@ namespace ArcGISRuntime.UWP.Samples.OAuth
         {
             if (e.Uri.AbsoluteUri.ToString() == ServerUrlHome)
             {
-                //AuthenticationManager.Current.OAuthAuthorizeHandler = new IOAuthAuthorizeHandler();
                 ArcGISHttpClientHandler.HttpResponseEnd -= ArcGISHttpClientHandler_HttpResponseEnd;
-
-                //ArcGISPortal arcgisPortal = await ArcGISPortal.CreateAsync(new Uri(ServerUrlHome), true);
-                //AuthenticationManager.Current.OAuthAuthorizeHandler = new MyOAuthAuthorize();
-
-                // Create a new ChallengeHandler that uses a method in this class to challenge for credentials
-                //AuthenticationManager.Current.ChallengeHandler = new ChallengeHandler(GetOAuthCredentials);
-                //credential = PromptCredentialAsync;
-
-                // Call GetCredentialAsync on the AuthenticationManager to invoke the challenge handler
-                //if(credential == null)
-                //credential = await AuthenticationManager.Current.ge(new Uri(ServerUrlHome),true);
+                ArcGISHttpClientHandler.HttpRequestBegin += ArcGISHttpClientHandler_HttpRequestBegin;
             } else
                 Console.WriteLine(e.Uri.AbsoluteUri.ToString());
         }

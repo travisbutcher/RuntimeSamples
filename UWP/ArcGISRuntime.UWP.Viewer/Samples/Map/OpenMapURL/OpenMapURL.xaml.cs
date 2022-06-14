@@ -55,8 +55,16 @@ namespace ArcGISRuntime.UWP.Samples.OpenMapURL
 
         private void MapSelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            // Create a new Map instance with url of the webmap that selected.
-            MyMapView.Map = new Map(new Uri(_itemURLs[MapList.SelectedIndex]));
+            try
+            {
+                // Create a new Map instance with url of the webmap that selected.
+                MyMapView.Map = new Map(new Uri(_itemURLs[MapList.SelectedIndex]));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+    
         }
     }
 }

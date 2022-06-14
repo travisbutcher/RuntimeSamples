@@ -11,14 +11,17 @@ using Esri.ArcGISRuntime.Security;
 using System;
 using System.Threading.Tasks;
 using Windows.UI.Popups;
+using Windows.UI.Xaml.Controls;
 
 namespace ArcGISRuntime.Helpers
 {
     internal static class ArcGISLoginPrompt
     {
-        private const string ArcGISOnlineUrl = "https://ua-gas-gisportal.southernco.com/portal/sharing/rest";
+        private const string PortalHome = "https://ua-gas-gisportal.southernco.com/portal/home";
+        private const string AuthorizeURL = "https://ua-gas-gisportal.southernco.com/portal/sharing/oauth2/authorize";
+        private const string TokenURL = "https://ua-gas-gisportal.southernco.com/portal/sharing/oauth2/token";
 
-        // - The Client ID for an app registered with the server (the ID below is for a public app created by the ArcGIS Runtime team).
+        // - The Client ID for an app registered with the server
         private const string AppClientId = "oHvyHoTBFYyzwTXV";
 
         // - An optional client secret for the app (only needed for the OAuthClientCredentials authorization type).
@@ -43,7 +46,7 @@ namespace ArcGISRuntime.Helpers
                     },
 
                     // Indicate the url (portal) to authenticate with (ArcGIS Online)
-                    ServiceUri = new Uri(ArcGISOnlineUrl)
+                    ServiceUri = new Uri(PortalHome)
                 };
 
                 // Call GetCredentialAsync on the AuthenticationManager to invoke the challenge handler
@@ -92,19 +95,11 @@ namespace ArcGISRuntime.Helpers
         public static void SetChallengeHandler()
         {
             // Define the server information for ArcGIS Online
-            ServerInfo portalServerInfo = new ServerInfo(new Uri(ArcGISOnlineUrl))
+            ServerInfo portalServerInfo = new ServerInfo(new Uri(PortalHome))
             {
                 TokenAuthenticationType = TokenAuthenticationType.OAuthAuthorizationCode,
                 OAuthClientInfo = new OAuthClientInfo(AppClientId, new Uri(OAuthRedirectUrl))
             };
-
-            // If a client secret has been configured, set the authentication type to OAuth client credentials.
-            if (!string.IsNullOrEmpty(ClientSecret))
-            {
-                // If a client secret is specified then use the TokenAuthenticationType.OAuthClientCredentials type.
-                portalServerInfo.TokenAuthenticationType = TokenAuthenticationType.OAuthClientCredentials;
-                portalServerInfo.OAuthClientInfo.ClientSecret = ClientSecret;
-            }
 
             // Register the ArcGIS Online server information with the AuthenticationManager
             AuthenticationManager.Current.RegisterServer(portalServerInfo);
